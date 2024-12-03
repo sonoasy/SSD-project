@@ -12,7 +12,7 @@ void fullwrite(char* data) {
 	}
 }
 
-void fullread() {  //0xCCCCCCCC가 왜있음? 
+void fullread() {  
 	for (int idx = 0; idx < 100; idx++) {
 		printf("0x%08X\n",read(idx));  // 모든 LBA에서 값을 읽음
 	}
