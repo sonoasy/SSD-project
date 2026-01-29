@@ -1,0 +1,33 @@
+# Build outputs
+*.o
+ssd_simulator
+ssd
+testshell
+
+# NAND persistent storage
+nand_flash.bin
+l2p_table.bin
+result.txt
+nand.txt
+
+# Backup directory (local only)
+backup/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*~
+.clangd/
+compile_commands.json
+
+# macOS
+.DS_Store
+
+# Linux
+*.out
+core
+
+# Debugging
+*.dSYM/
+vgcore.*

@@ -1,31 +1,48 @@
-# Makefile
+# Makefile for SSD Simulator with FTL & GC
 
 CC = gcc
-CFLAGS = -Wall -g  # 디버그 정보 포함
-TARGET = testapp
+CFLAGS = -Wall -Wextra -O2 -g
+TARGET = ssd_simulator
 
-# 소스 파일
-SRC = ssd.c testshell.c
-OBJ = $(SRC:.c=.o)
+# Source files
+SOURCES = testshell_new.c ssd_new.c ftl.c nand_flash.c
+OBJECTS = $(SOURCES:.c=.o)
+HEADERS = ssd_new.h ftl.h nand_flash.h
 
-# 기본 빌드 규칙
+# Build target
 all: $(TARGET)
 
-# 실행 파일 생성
-$(TARGET): $(OBJ)
-	$(CC) $(OBJ) -o $(TARGET)
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
+	@echo "Build complete: ./$(TARGET)"
 
-# 개별 파일 컴파일
-ssd.o: ssd.c ssd.h
-	$(CC) $(CFLAGS) -c ssd.c
+# Compile individual object files
+%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-testshell.o: testshell.c ssd.h
-	$(CC) $(CFLAGS) -c testshell.c
-
-# 클린 규칙
+# Clean build artifacts
 clean:
-	rm -f $(OBJ) $(TARGET)
+	rm -f $(OBJECTS) $(TARGET)
+	rm -f nand_flash.bin result.txt nand.txt
+	@echo "Clean complete"
 
-# 테스트 실행
+# Run the simulator
+run: $(TARGET)
+	./$(TARGET)
+
+# Run with automatic test
 test: $(TARGET)
-	./$(TARGET) < test_commands.txt
+	@echo "Running TestApp1..."
+	@echo "testapp1" | ./$(TARGET)
+	@echo ""
+	@echo "Running TestApp2..."
+	@echo "testapp2" | ./$(TARGET)
+	@echo ""
+	@echo "Running TestApp3 (GC test)..."
+	@echo "testapp3" | ./$(TARGET)
+
+# Show statistics
+stats: $(TARGET)
+	@echo "stats" | ./$(TARGET)
+
+.PHONY: all clean run test stats
