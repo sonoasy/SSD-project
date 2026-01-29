@@ -188,29 +188,12 @@ double waf = (double)total_nand_writes / total_host_writes;
 
 ---
 
-## 면접 어필 포인트
-
-### 1. 시스템 레벨 이해도
-- "단순 파일 I/O가 아닌 **하드웨어 제약을 코드로 모델링**했습니다"
-- "NAND Flash는 덮어쓰기가 불가능하기 때문에, FTL이 이를 추상화해야 합니다"
-
-### 2. 알고리즘 설계 능력
-- "GC의 Victim Selection을 **Greedy 전략**으로 구현했고, Cost-Benefit 같은 다른 전략도 이해하고 있습니다"
-- "WAF를 최소화하기 위해서는 Hot/Cold data separation이나 Over-provisioning 조절이 필요합니다"
-
-### 3. 실무 연결성
-- "TestApp2에서 30번 반복 쓰기로 **Aging 시뮬레이션**을 했습니다"
-- "엔터프라이즈 SSD는 LDPC ECC, Power-Loss Protection, Wear Leveling 등을 추가로 구현합니다"
-
-### 4. 코드 품질
-- "기존 인터페이스는 **하위 호환성**을 유지하면서, 내부만 FTL로 교체했습니다"
-- "Makefile로 빌드 자동화하고, 자동 테스트 스크립트를 작성했습니다"
 
 ---
 
-## 다음 단계 (2단계 프롬프트 대응)
+## 다음 단계
 
-2단계에서 추가할 내용:
+
 - **멀티스레드**: pthread로 Foreground I/O와 Background GC 분리
 - **Lock Contention**: mutex로 L2P 테이블 동기화, 대기 시간 측정
 - **성능 리포트**: GC 전후 Latency 비교
@@ -232,15 +215,3 @@ MIT License (기존 프로젝트 계승)
 
 ---
 
-## 작성자
-
-Lisa (sonoasy) - 31살 신입 시스템 엔지니어
-포트폴리오 프로젝트: 실무 수준 SSD 시뮬레이터
-
-**면접 대비 핵심 질문 예상 답변**:
-- Q: "왜 NAND Flash는 덮어쓰기가 안 되나요?"
-  - A: "전하를 가두는 Floating Gate 구조 때문에, 삭제는 블록 단위로만 가능합니다"
-- Q: "WAF를 줄이려면 어떻게 해야 하나요?"
-  - A: "Over-provisioning 증가, Hot/Cold data 분리, 더 효율적인 GC 알고리즘 사용"
-- Q: "L2P 테이블이 너무 크면 어떻게 하나요?"
-  - A: "Demand-based FTL이나 Hybrid FTL로 일부만 DRAM에 캐싱"
