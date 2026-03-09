@@ -13,7 +13,7 @@
 #include <stdbool.h>
 
 // ==================== FTL CONFIGURATION ====================
-#define TOTAL_LOGICAL_PAGES     100     // 기존 프로젝트와 호환 (LBA 0~99)
+#define TOTAL_LOGICAL_PAGES     900     
 #define GC_THRESHOLD            10      // Free pages가 10% 이하일 때 GC 발동
 
 // ==================== DATA STRUCTURES ====================
@@ -26,6 +26,9 @@ typedef struct {
     // 통계
     uint64_t total_host_writes;         // 호스트가 요청한 쓰기 수
     uint64_t total_gc_count;            // GC 발동 횟수
+    uint32_t next_free_hot;
+    uint32_t next_free_cold;
+
 } FTL;
 
 // ==================== FUNCTION PROTOTYPES ====================
@@ -40,11 +43,12 @@ int ftl_read(FTL *ftl, uint32_t lba, uint8_t *data);
 
 // Garbage Collection
 void ftl_trigger_gc(FTL *ftl);
-uint32_t ftl_select_victim_block(FTL *ftl);
+uint32_t ftl_select_victim_block_greedy(FTL *ftl);
+uint32_t ftl_select_victim_block_cost(FTL *ftl);
 void ftl_gc_one_block(FTL *ftl, uint32_t victim_block_idx);
 
 // 내부 유틸리티
-uint32_t ftl_find_free_page(FTL *ftl);
+uint32_t ftl_find_free_page(FTL *ftl,uint32_t lba);
 void ftl_invalidate_old_page(FTL *ftl, uint32_t lba);
 double ftl_calculate_waf(FTL *ftl);
 

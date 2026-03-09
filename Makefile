@@ -5,9 +5,9 @@ CFLAGS = -Wall -Wextra -O2 -g
 TARGET = ssd_simulator
 
 # Source files
-SOURCES = testshell_new.c ssd_new.c ftl.c nand_flash.c
+SOURCES = testshell.c ssd.c ftl.c nand_flash.c
 OBJECTS = $(SOURCES:.c=.o)
-HEADERS = ssd_new.h ftl.h nand_flash.h
+HEADERS = ssd.h ftl.h nand_flash.h
 
 # Build target
 all: $(TARGET)

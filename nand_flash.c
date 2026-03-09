@@ -87,7 +87,9 @@ int nand_write_page(NANDFlash *nand, uint32_t pba, const uint8_t *data, uint32_t
     // OOB 메타데이터 업데이트
     page->oob.state = PAGE_VALID;
     page->oob.lba = lba;
-    page->oob.write_count++;
+    //page->oob.write_count++;
+    page->oob.write_count = nand->total_page_writes;
+    
     page->oob.timestamp = (uint32_t)time(NULL);
     
     nand->total_page_writes++;

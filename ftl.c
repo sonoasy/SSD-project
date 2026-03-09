@@ -27,6 +27,10 @@ void ftl_init(FTL *ftl) {
         ftl->l2p_table[i] = 0xFFFFFFFF;
     }
     
+    ftl->next_free_hot  = 0;
+ftl->next_free_cold = TOTAL_PAGES / 2;
+
+
     // 기존 매핑 복구 (NAND의 OOB에서 LBA 정보 읽기)
     for (uint32_t pba = 0; pba < TOTAL_PAGES; pba++) {
         if (nand_get_page_state(&ftl->nand, pba) == PAGE_VALID) {
@@ -66,13 +70,19 @@ int ftl_write(FTL *ftl, uint32_t lba, const uint8_t *data) {
     ftl_invalidate_old_page(ftl, lba);
     
     // Step 2: Free page 찾기
-    uint32_t pba = ftl_find_free_page(ftl);
+    // GC_THRESHOLD 체크 (미리 GC 발동)
+if (nand_get_free_page_count(&ftl->nand) < TOTAL_PAGES * GC_THRESHOLD / 100) {
+    ftl_trigger_gc(ftl);
+}
+    
+    
+    uint32_t pba = ftl_find_free_page(ftl,lba);
     
     // Step 3: GC 필요 여부 확인
     if (pba == 0xFFFFFFFF) {
         printf("[FTL] No free pages, triggering GC...\n");
         ftl_trigger_gc(ftl);
-        pba = ftl_find_free_page(ftl);
+        pba = ftl_find_free_page(ftl,lba);
         
         if (pba == 0xFFFFFFFF) {
             fprintf(stderr, "[FTL] CRITICAL: GC failed, no space available\n");
@@ -117,7 +127,7 @@ void ftl_trigger_gc(FTL *ftl) {
     ftl->total_gc_count++;
     
     // Victim 블록 선택 (Greedy 전략: invalid page가 가장 많은 블록)
-    uint32_t victim_block_idx = ftl_select_victim_block(ftl);
+    int32_t victim_block_idx = ftl_select_victim_block_cost(ftl);
     
     if (victim_block_idx == 0xFFFFFFFF) {
         fprintf(stderr, "[GC] No victim block found (all blocks are full of valid data)\n");
@@ -136,7 +146,9 @@ void ftl_trigger_gc(FTL *ftl) {
     printf("[GC] Block %u erased successfully\n", victim_block_idx);
 }
 
-uint32_t ftl_select_victim_block(FTL *ftl) {
+
+uint32_t ftl_select_victim_block_greedy(FTL *ftl) {
+    printf("[GC] policy=GREEDY\n");
     uint32_t max_invalid_count = 0;
     uint32_t victim_block_idx = 0xFFFFFFFF;
     
@@ -153,9 +165,50 @@ uint32_t ftl_select_victim_block(FTL *ftl) {
     return victim_block_idx;
 }
 
+
+uint32_t ftl_select_victim_block_cost(FTL *ftl) {
+    printf("[GC] policy=COST_EFFICIENT\n");
+    double max_score = -1.0;
+    uint32_t victim_block_idx = 0xFFFFFFFF;
+    uint32_t current_time = (uint32_t)time(NULL);
+
+    for (uint32_t b = 0; b < TOTAL_BLOCKS; b++) {
+        uint32_t invalid_count = nand_get_invalid_page_count(&ftl->nand, b);
+
+        if (invalid_count == 0) continue;
+
+        uint32_t valid_count = 0;
+        uint32_t last_write_time = 0;
+
+        for (uint32_t p = 0; p < PAGES_PER_BLOCK; p++) {
+            uint32_t pba = b * PAGES_PER_BLOCK + p;
+            if (nand_get_page_state(&ftl->nand, pba) == PAGE_VALID) {
+                valid_count++;
+                uint32_t ts = ftl->nand.blocks[b].pages[p].oob.write_count;//ftl->nand.blocks[b].pages[p].oob.timestamp;
+                if (ts > last_write_time) last_write_time = ts;
+            }
+        }
+
+        // Cost-Benefit 공식
+        // score = (회수 공간 / 이동 비용) * 블록 나이
+        double reclaim = (double)invalid_count / PAGES_PER_BLOCK;
+        double cost = 1.0 + (double)valid_count / PAGES_PER_BLOCK;
+        double age = (double)(ftl->nand.total_page_writes - last_write_time + 1);
+	//double age = (double)(current_time - last_write_time + 1);
+        double score = (reclaim / cost)*age;
+
+        if (score > max_score) {
+            max_score = score;
+            victim_block_idx = b;
+        }
+    }
+
+    return victim_block_idx;
+}
+
 void ftl_gc_one_block(FTL *ftl, uint32_t victim_block_idx) {
     uint8_t temp_buffer[PAGE_SIZE];
-    
+    uint8_t moved=0;   
     // 블록 내의 모든 valid page를 새 위치로 복사
     for (uint32_t p = 0; p < PAGES_PER_BLOCK; p++) {
         uint32_t old_pba = victim_block_idx * PAGES_PER_BLOCK + p;
@@ -163,7 +216,7 @@ void ftl_gc_one_block(FTL *ftl, uint32_t victim_block_idx) {
         if (nand_get_page_state(&ftl->nand, old_pba) == PAGE_VALID) {
             // Valid 데이터 읽기
             uint32_t lba = ftl->nand.blocks[victim_block_idx].pages[p].oob.lba;
-            
+            moved++;
             if (lba >= TOTAL_LOGICAL_PAGES) {
                 continue; // Invalid LBA, skip
             }
@@ -174,7 +227,7 @@ void ftl_gc_one_block(FTL *ftl, uint32_t victim_block_idx) {
             }
             
             // 새 위치 찾기
-            uint32_t new_pba = ftl_find_free_page(ftl);
+            uint32_t new_pba = ftl_find_free_page(ftl,lba);
             if (new_pba == 0xFFFFFFFF) {
                 fprintf(stderr, "[GC] No free page during migration\n");
                 return;
@@ -195,12 +248,12 @@ void ftl_gc_one_block(FTL *ftl, uint32_t victim_block_idx) {
             printf("[GC] Migrated LBA %u: PBA %u -> %u\n", lba, old_pba, new_pba);
         }
     }
+    printf("[GC] Moved pages: %u\n", moved);
 }
 
 // ==================== INTERNAL UTILITIES ====================
-
+/*
 uint32_t ftl_find_free_page(FTL *ftl) {
-    // Sequential allocation 전략
     for (uint32_t i = 0; i < TOTAL_PAGES; i++) {
         uint32_t pba = (ftl->next_free_page + i) % TOTAL_PAGES;
         
@@ -209,10 +262,74 @@ uint32_t ftl_find_free_page(FTL *ftl) {
             return pba;
         }
     }
-    
-    return 0xFFFFFFFF; // No free page
+    return 0xFFFFFFFF;
+}
+*/
+
+static inline int is_hot_lba(uint32_t lba) {
+    return (lba < 176);
 }
 
+uint32_t ftl_find_free_page(FTL *ftl, uint32_t lba) {
+    uint32_t *wp = is_hot_lba(lba) ? &ftl->next_free_hot : &ftl->next_free_cold;
+
+    for (uint32_t i = 0; i < TOTAL_PAGES; i++) {
+        uint32_t pba = (*wp + i) % TOTAL_PAGES;
+        if (nand_get_page_state(&ftl->nand, pba) == PAGE_FREE) {
+            *wp = (pba + 1) % TOTAL_PAGES;
+            return pba;
+        }
+    }
+    return 0xFFFFFFFF;
+}
+
+
+
+
+/*
+uint32_t ftl_find_free_page(FTL *ftl) {
+    // Sequential allocation 전략
+//    for (uint32_t i = 0; i < TOTAL_PAGES; i++) {
+  //      uint32_t pba = (ftl->next_free_page + i) % TOTAL_PAGES;
+        
+    //    if (nand_get_page_state(&ftl->nand, pba) == PAGE_FREE) {
+      //      ftl->next_free_page = (pba + 1) % TOTAL_PAGES;
+       //     return pba;
+       // }
+   // }
+    //wear leveling으로 변경
+    uint32_t min_erase = UINT32_MAX;
+    uint32_t target_block = 0xFFFFFFFF;
+
+    // erase_count 가장 적은 블록 중 FREE 페이지 있는 블록 선택
+    for (uint32_t b = 0; b < TOTAL_BLOCKS; b++) {
+        if (ftl->nand.blocks[b].erase_count < min_erase) {
+            // 이 블록에 FREE 페이지 있는지 확인
+            for (uint32_t p = 0; p < PAGES_PER_BLOCK; p++) {
+                uint32_t pba = b * PAGES_PER_BLOCK + p;
+                if (nand_get_page_state(&ftl->nand, pba) == PAGE_FREE) {
+                    min_erase = ftl->nand.blocks[b].erase_count;
+                    target_block = b;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (target_block == 0xFFFFFFFF) return 0xFFFFFFFF;
+
+    // target_block에서 FREE 페이지 찾아서 반환
+    for (uint32_t p = 0; p < PAGES_PER_BLOCK; p++) {
+        uint32_t pba = target_block * PAGES_PER_BLOCK + p;
+        if (nand_get_page_state(&ftl->nand, pba) == PAGE_FREE) {
+            return pba;
+        }
+    }
+
+
+    return 0xFFFFFFFF; // No free page
+}
+*/
 void ftl_invalidate_old_page(FTL *ftl, uint32_t lba) {
     uint32_t old_pba = ftl->l2p_table[lba];
     

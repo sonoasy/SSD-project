@@ -6,9 +6,12 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
-#include "ssd_new.h"
+#include "ssd.h"
 #include <stdlib.h>
 #include <string.h>
+#include "ftl.h"   // FTL 타입 알기 위해
+extern FTL g_ftl;  // 다른 .c 파일에 있는 전역 변수 사용 선언
+
 
 void fullwrite(char* data) {
     for (int idx = 0; idx < 100; idx++) {
@@ -118,7 +121,286 @@ void testapp3() {
         }
     }
 }
+/*
+void testapp4() {
+    // 전체 LBA 0~999를 50라운드 반복 쓰기
+    // 100 * 50 = 5000번 쓰기 → GC 발동 유도
+    for (int round = 0; round < 130; round++) {
+        for (int i = 0; i < 1000; i++) {
+            int lba = (i + round * 13) % 1000;  // 13씩 offset
+	    char data[20];
+            sprintf(data, "0x%08X", round * 1000 + i);
+            write(lba, data);
+        }
+    }
+    ssd_print_statistics();
+}
+*/
+/*void testapp4() {
+    srand(42);
+    for (int i = 0; i < 10000; i++) {
+        int lba = rand() % 100;
+        char data[20];
+        sprintf(data, "0x%08X", i);
+        write(lba, data);
+    }
+    ssd_print_statistics();
+}
 
+void testapp4() {
+    //srand(42);
+    for (int round = 0; round < 10000; round++) {
+        int write_count = 50 + (round % 7) * 13;  // 라운드마다 다른 개수
+        srand(42+round);
+	for (int i = 0; i < write_count; i++) {
+            //int lba = rand() % 100;
+            //if (rand()%100 < 90) lba = rand()%100;          // hot
+            //else lba = 100 + rand()%900;    // cold
+	    int r = rand() % 100;
+            int lba;// (r < 80) ? (rand()%16) : (rand()%100); // 80%는 0~15 
+            if (r < 80) lba = rand() % 16;           // hot: 0~15
+            else lba = 16 + rand() % 84;      // cold: 16~99 (hot 제외) 
+	    char data[20];
+            sprintf(data, "0x%08X", round * 100 + i);
+            write(lba, data);
+        }
+    }
+    ssd_print_statistics();
+}
+
+
+void testapp4() {
+    for (int round = 0; round < 100000; round++) {
+        int write_count = 50 + (round % 7) * 13;
+        srand(42 + round);
+
+        int base, len;
+        if (round % 2 == 0) { base = 1;   len = 100; }   // 1~100
+        else                { base = 300; len = 101; }   // 300~400
+
+        for (int i = 0; i < write_count; i++) {
+            int r = rand() % 100;
+            int lba;
+
+            // hot: 16개, cold: 나머지 (len-16개)
+            if (r < 80) {
+                lba = base + (rand() % 16);              // hot: base~base+15
+            } else {
+                lba = base + 16 + (rand() % (len - 16)); // cold: base+16 ~ base+len-1
+            }
+
+            char data[20];
+            sprintf(data, "0x%08X", round * 100 + i);
+            write(lba, data);
+        }
+    }
+    ssd_print_statistics();
+}
+
+*/
+/*
+void testapp4() {
+    const int MAX_ROUND = 100000;   // 10만 라운드
+    const int STEP = 5000;          // 5000 라운드마다 체크
+
+    
+    
+    long long prev_host = 0;
+    long long prev_nand = 0;
+
+    for (int round = 0; round < MAX_ROUND; round++) {
+        int write_count = 50 + (round % 7) * 13;
+        srand(42 + round);
+
+        int base, len;
+        if (round % 2 == 0) { base = 1;   len = 100; }   // 1~100
+        else                { base = 300; len = 101; }   // 300~400 (포함이라 101)
+
+        for (int i = 0; i < write_count; i++) {
+            int r = rand() % 100;
+            int lba;
+
+            // hot: 16개( base~base+15 )가 80%
+            // cold: 나머지( base+16~base+len-1 )가 20%
+            if (r < 80) lba = base + (rand() % 16);
+            else        lba = base + 16 + (rand() % (len - 16));
+
+            char data[20];
+            sprintf(data, "0x%08X", round * 100 + i);
+            write(lba, data);
+        }
+
+        //  5000 라운드마다 interval WAF 계산 + ASCII 그래프 출력
+        if ((round + 1) % STEP == 0) {
+    //        long long cur_host = (long long)g_ftl.total_host_writes;
+  //          long long cur_nand = (long long)g_ftl.nand.total_page_writes;
+//
+    //        long long dh = cur_host - prev_host;
+  //          long long dn = cur_nand - prev_nand;
+//
+    //        double interval_waf = (dh > 0) ? ((double)dn / (double)dh) : 0.0;
+  //          double total_waf    = (cur_host > 0) ? ((double)cur_nand / (double)cur_host) : 0.0;
+//
+        //    // 막대 길이: (waf-1.0)*50 정도로 시각화
+      //      int bar = (int)((interval_waf - 1.0) * 50.0);
+    //        if (bar < 0) bar = 0;
+  //          if (bar > 80) bar = 80;
+//
+        //    printf("%6d  total=%.4f  interval=%.4f  dh=%lld dn=%lld  |",
+      //             round + 1, total_waf, interval_waf, dh, dn);
+    //       for (int k = 0; k < bar; k++) putchar('#');
+  //          putchar('\n');
+//
+  //          prev_host = cur_host;
+//            prev_nand = cur_nand;
+              ssd_print_statistics();
+       	}
+    }
+
+    // 마지막에 전체 통계 한 번
+    //ssd_print_statistics();
+
+   
+}
+*/
+
+void testapp4() {
+    const int MAX_ROUND = 5000;
+    const int STEP = 250;
+    const int SAMPLE_CNT = MAX_ROUND / STEP;
+
+    double interval_waf[SAMPLE_CNT];
+    double total_waf[SAMPLE_CNT];
+
+    uint64_t prev_host = 0;
+    uint64_t prev_nand = 0;
+    int idx = 0;
+    srand(42); 
+    for (int round = 0; round < MAX_ROUND; round++) {
+
+        int write_count = 50 + (round % 7) * 13;
+        //srand(42 + round);
+
+        int base, len;
+        if (round % 2 == 0) { base = 1;   len = 100; }
+        else                { base = 300; len = 101; }
+
+        for (int i = 0; i < write_count; i++) {
+            int r = rand() % 100;
+            int lba;//=rand()%1000;
+
+            if (r < 80) lba =(rand() % 153);
+            else lba = 153 + (rand() % 747);
+
+            char data[20];
+            sprintf(data, "0x%08X", round * 100 + i);
+            write(lba, data);
+        }
+
+        // 라운드마다 저장
+        if ((round + 1) % STEP == 0) {
+
+            uint64_t cur_host = g_ftl.total_host_writes;
+            uint64_t cur_nand = g_ftl.nand.total_page_writes;
+
+            uint64_t dh = cur_host - prev_host;
+            uint64_t dn = cur_nand - prev_nand;
+
+            interval_waf[idx] = (dh ? (double)dn / (double)dh : 0.0);
+            total_waf[idx]    = (cur_host ? (double)cur_nand / (double)cur_host : 0.0);
+
+            prev_host = cur_host;
+            prev_nand = cur_nand;
+            idx++;
+        }
+    }
+
+    printf("\n====== WAF Summary ======\n");
+    for (int i = 0; i < SAMPLE_CNT; i++) {
+        printf("%6d round  total=%.4f  interval=%.4f\n",
+               (i+1)*STEP, total_waf[i], interval_waf[i]);
+    }
+}
+
+/*
+void testapp4() {
+    const int MAX_ROUND = 5000;
+    const int STEP = 250;
+    const int SAMPLE_CNT = MAX_ROUND / STEP;
+
+    double interval_waf[SAMPLE_CNT];
+    double total_waf[SAMPLE_CNT];
+
+    uint64_t prev_host = 0, prev_nand = 0;
+    int idx = 0;
+
+    // ✅ seed는 딱 1번만
+    srand(42);
+
+    // ✅ hot/cold 설정
+    const int LBA_TOTAL = 1100;
+    const int HOT_SIZE  = 176;        // hot 영역: 0~175
+    const int COLD_BASE = 176;        // cold 영역 시작
+    const int COLD_SIZE = LBA_TOTAL - HOT_SIZE; // 924
+
+    // cold에 "약간의 순차성" 주기 위한 커서
+    int cold_cursor = 0;
+
+    for (int round = 0; round < MAX_ROUND; round++) {
+
+        int write_count = 50 + (round % 7) * 13;
+
+        for (int i = 0; i < write_count; i++) {
+
+            // ✅ hot 확률 80% (원하면 90으로 올려도 됨)
+            int is_hot = (rand() % 100) < 80;
+
+            int lba;
+            if (is_hot) {
+                // hot은 작은 범위에 강하게 몰기
+                lba = rand() % HOT_SIZE;
+            } else {
+                // cold는 완전 랜덤 대신 "지역성" 추가:
+                //  - 70%: cold_cursor 기준으로 근처(작은 윈도우)에서 선택
+                //  - 30%: cold 전체에서 랜덤
+                if ((rand() % 100) < 70) {
+                    int window = 16; // 근처 16개 정도
+                    int offset = (rand() % window);
+                    lba = COLD_BASE + (cold_cursor + offset) % COLD_SIZE;
+                    cold_cursor = (cold_cursor + 1) % COLD_SIZE;
+                } else {
+                    lba = COLD_BASE + (rand() % COLD_SIZE);
+                }
+            }
+
+            char data[20];
+            sprintf(data, "0x%08X", round * 100 + i);
+            write(lba, data);
+        }
+
+        if ((round + 1) % STEP == 0) {
+            uint64_t cur_host = g_ftl.total_host_writes;
+            uint64_t cur_nand = g_ftl.nand.total_page_writes;
+
+            uint64_t dh = cur_host - prev_host;
+            uint64_t dn = cur_nand - prev_nand;
+
+            interval_waf[idx] = (dh ? (double)dn / (double)dh : 0.0);
+            total_waf[idx]    = (cur_host ? (double)cur_nand / (double)cur_host : 0.0);
+
+            prev_host = cur_host;
+            prev_nand = cur_nand;
+            idx++;
+        }
+    }
+
+    printf("\n====== WAF Summary ======\n");
+    for (int i = 0; i < SAMPLE_CNT; i++) {
+        printf("%6d round  total=%.4f  interval=%.4f\n",
+               (i+1)*STEP, total_waf[i], interval_waf[i]);
+    }
+}
+*/
 void executecommand(char *cmd) {
     // 명령어 파싱
     char* token = strtok(cmd, " ");
@@ -134,8 +416,8 @@ void executecommand(char *cmd) {
         token = strtok(NULL, " ");  // 데이터 가져옴
         char* data = token;
         
-        if (idx < 0 || idx > 99) {
-            printf("할당된 범위 밖입니다 (0~99)\n");
+        if (idx < 0 || idx > 999) {
+            printf("할당된 범위 밖입니다 (0~999)\n");
             return;
         }
         if (strlen(data) != 10) {
@@ -149,8 +431,8 @@ void executecommand(char *cmd) {
         token = strtok(NULL, " ");  // idx 가져옴
         int idx = atoi(token);
         
-        if (idx < 0 || idx > 99) {
-            printf("할당된 범위 밖입니다 (0~99)\n");
+        if (idx < 0 || idx > 999) {
+            printf("할당된 범위 밖입니다 (0~999)\n");
             return;
         }
         
@@ -161,8 +443,8 @@ void executecommand(char *cmd) {
         printf("기본 명령어:\n");
         printf("  W <idx> <data>   - 특정 LBA에 쓰기 (예: W 3 0xAAAABBBB)\n");
         printf("  R <idx>          - 특정 LBA에서 읽기 (예: R 3)\n");
-        printf("  fullwrite <data> - 모든 LBA(0~99)에 동일 데이터 쓰기\n");
-        printf("  fullread         - 모든 LBA(0~99) 읽기\n");
+        printf("  fullwrite <data> - 모든 LBA(0~999)에 동일 데이터 쓰기\n");
+        printf("  fullread         - 모든 LBA(0~999) 읽기\n");
         printf("  exit             - 프로그램 종료\n");
         printf("\n테스트 애플리케이션:\n");
         printf("  testapp1         - Full Write/Read 검증\n");
@@ -201,6 +483,9 @@ void executecommand(char *cmd) {
     }
     else if (strcmp(token, "testapp3") == 0) {  // NEW
         testapp3();
+    }
+    else if (strcmp(token, "testapp4") == 0) {
+    testapp4();
     }
     else if (strcmp(token, "stats") == 0) {  // NEW
         ssd_print_statistics();

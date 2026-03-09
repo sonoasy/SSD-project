@@ -6,14 +6,15 @@
  */
 
 #define _CRT_SECURE_NO_WARNINGS
-#include "ssd_new.h"
+#include "ssd.h"
 #include "ftl.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 // ==================== GLOBAL FTL INSTANCE ====================
-static FTL g_ftl;
+//static 
+FTL g_ftl;
 static int g_initialized = 0;
 
 // ==================== INTERNAL HELPERS ====================
@@ -59,7 +60,8 @@ void write(int idx, char* data) {
     
     if (idx < 0 || idx >= TOTAL_LOGICAL_PAGES) {
         printf("[SSD] 할당된 범위 밖입니다 (0~%d)\n", TOTAL_LOGICAL_PAGES - 1);
-        return;
+        printf("%d",TOTAL_LOGICAL_PAGES);
+	return;
     }
     
     // Hex string을 바이트 배열로 변환

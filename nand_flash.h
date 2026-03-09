@@ -16,8 +16,8 @@
 // ==================== HARDWARE CONFIGURATION ====================
 #define PAGE_SIZE           2048        // 2KB data per page
 #define OOB_SIZE            64          // Out-Of-Band metadata
-#define PAGES_PER_BLOCK     128
-#define TOTAL_BLOCKS        100         // 기존 프로젝트와 호환 (100개 LBA 지원)
+#define PAGES_PER_BLOCK     64
+#define TOTAL_BLOCKS        25
 #define TOTAL_PAGES         (TOTAL_BLOCKS * PAGES_PER_BLOCK)
 
 // ==================== DATA STRUCTURES ====================
